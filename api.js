@@ -121,7 +121,7 @@ async function expandRecipes(recipes) {
   const recs = await httpGet(url);
   return recs
     .filter((res) => !res.guild_ingredients)
-    .filter((res) => !res.flags.includes("LearnedFromItem"))
+    .filter((res) => !res.flags.includes('LearnedFromItem'))
     .map((res) => ({
       makesItemId: res.output_item_id,
       viaRecipe: res.id,
@@ -139,5 +139,5 @@ function printCalls() {
 
 module.exports = {
   printCalls,
-  api: { getPrices, getTranslates, getRecipe, getAllIds, expandRecipes},
+  api: { getPrices, getTranslates, getRecipe, getAllIds, getListings, expandRecipes },
 };

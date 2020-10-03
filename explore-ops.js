@@ -1,7 +1,6 @@
-const {makeBatches, cache, toHumanCoin, sleep} = require('./utils')
-const {api, printCalls} = require('./api');
+const { makeBatches, cache, toHumanCoin, sleep } = require('./utils');
+const { api, printCalls } = require('./api');
 const MIN_PROFIT = 100;
-
 
 function getFlipValue(totalCost, totalValue) {
   const listingFee = Math.max(totalValue * 0.05, 1);
@@ -13,33 +12,32 @@ function getFlipValue(totalCost, totalValue) {
   return { rev: 0, profit: 0 };
 }
 
-
 async function getAllTradeableCraftableIds() {
-  let allIds = cache.readStore("ids");
+  let allIds = cache.read('ids');
   if (!allIds) {
     allIds = await api.getAllIds();
-    cache.writeStore(allIds, "ids");
+    cache.write(allIds, 'ids');
   }
 
   const groups = makeBatches(allIds, 500);
 
-  let acc = cache.readStore("allRecs");
+  let acc = cache.read('allRecs');
   if (!acc) {
     acc = {};
     for (const [key, batch] of Object.entries(groups)) {
-      let recs = cache.readStore(`batch_${batch[0]}`);
+      let recs = cache.read(`batch_${batch[0]}`);
       if (!recs) {
         recs = await Promise.all(batch.map((i) => api.getRecipe(i)));
-        cache.writeStore(recs, `batch_${batch[0]}`);
+        cache.write(recs, `batch_${batch[0]}`);
         for (let i = 0; i < recs.length; i++) {
           if (recs[i].length !== 0) {
             acc[batch[i]] = recs[i];
           } else {
-            console.log("Removing", batch[i]);
+            console.log('Removing', batch[i]);
             allIds = allIds.filter((id) => id !== batch[i]);
           }
         }
-        cache.writeStore(allIds, "ids");
+        cache.write(allIds, 'ids');
       } else {
         for (let i = 0; i < recs.length; i++) {
           if (recs[i].length !== 0) {
@@ -47,10 +45,10 @@ async function getAllTradeableCraftableIds() {
           }
         }
       }
-      console.log("Ids left:", allIds.length);
+      console.log('Ids left:', allIds.length);
       await sleep(90000);
     }
-    cache.writeStore(acc, "allRecs");
+    cache.write(acc, 'allRecs');
   }
 
   console.log(`${Object.keys(acc).length} ids loaded.`);
@@ -137,7 +135,7 @@ async function main() {
   recipes = filterUnusableRecipes(recipes, listings);
   recipes = filterUnfeasibleProfits(recipes, listings);
 
-  console.log("Network", NETWORK_CALLS);
+  printCalls();
 
   console.table(
     recipes
@@ -149,7 +147,7 @@ async function main() {
             ? JSON.stringify(
                 record.items.map((it) => ({ id: it.itemId, ct: it.needed, cp: it.costPer }))
               )
-            : "...",
+            : '...',
         buyNowCost: toHumanCoin(record.buyNowCost),
         sellNowValue: toHumanCoin(record.sellNowValue),
         sellNowUnits: record.sellNowUnits,

@@ -23,6 +23,9 @@ function readStore(fileName) {
 
 function writeStore(data, name) {
   try {
+    if (!fs.existsSync('./cache')) {
+      fs.mkdirSync('./cache');
+    }
     fs.writeFileSync(`./cache/${name}.json`, JSON.stringify(data));
   } catch (err) {
     console.error(err);
@@ -50,9 +53,9 @@ function toHumanCoin(coins) {
       gold = coins;
     }
   }
-  const s = `${silver}`.padStart(2, "0");
-  const c = `${copper}`.padStart(2, "0");
-  const g = `${gold}`.padStart(2, "0");
+  const s = `${silver}`.padStart(2, '0');
+  const c = `${copper}`.padStart(2, '0');
+  const g = `${gold}`.padStart(2, '0');
   return `${g}g ${s}s ${c}c`;
 }
 
