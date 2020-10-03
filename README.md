@@ -1,10 +1,10 @@
 # API helper for finding opportunities #
 
-## Shortlink ##
+## Daily Crafts ##
 
-Source: https://metabattle.com/wiki/Guide:Ways_to_Earn_Gold
-
-https://gw2efficiency.com/crafting/calculator/a~1!b~0!c~0!d~1-46741;1-46738;1-46739;1-46736;1-66993;1-67015
+- Follow the link to GW2Efficiency to see what the cost of crafting is
+- Input that into getCost()
+- Run script to see what each will sell for and what the total profit will be
 
 ## Supply Boxes ##
 ### Fetch Prices  ###
@@ -99,3 +99,4 @@ Array.from(document.querySelectorAll('.eff-Table > tbody > tr > td > div > div:n
   "Wool Scrap": 14
 }
 ```
+>>>>>>> master
