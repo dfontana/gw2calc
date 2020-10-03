@@ -1,6 +1,5 @@
-const http = require("https");
+const { api, printCalls } = require('./api');
 
-const GW2API = "https://api.guildwars2.com/v2";
 const IDS = [
   19721,
   24277,
@@ -42,76 +41,35 @@ const IDS = [
       .reduce((acc, ts) => {acc[ts[1]] = parseInt(ts[0]); return acc;}, {})
  */
 const BOX_PRICES = {
-  "Soft Wood Log": 23,
-  "Elder Wood Log": 9,
-  "Platinum Ore": 11,
-  "Mithril Ore": 17,
-  "Linen Scrap": 11,
-  "Iron Ore": 11,
-  "Thick Leather Section": 15,
-  "Rugged Leather Section": 4,
-  "Rawhide Leather Section": 23,
-  "Coarse Leather Section": 10,
-  "Cotton Scrap": 13,
-  "Silk Scrap": 32,
-  "Hard Wood Log": 23,
-  "Seasoned Wood Log": 18,
-  "Pile of Crystalline Dust": 1,
-  "Gold Ore": 32,
-  "Jute Scrap": 17,
-  "Silver Ore": 54,
-  "Glob of Ectoplasm": 0.6666, // Note you get 3 for 2, so 0.6666 for 1
-  "Thin Leather Section": 9,
-  "Ancient Wood Log": 8,
-  "Copper Ore": 18,
-  "Gossamer Scrap": 16,
-  "Hardened Leather Section": 2,
-  "Green Wood Log": 64,
-  "Watchwork Sprocket": 7,
-  "Orichalcum Ore": 13,
-  "Wool Scrap": 14,
+  'Soft Wood Log': 23,
+  'Elder Wood Log': 9,
+  'Platinum Ore': 11,
+  'Mithril Ore': 17,
+  'Linen Scrap': 11,
+  'Iron Ore': 11,
+  'Thick Leather Section': 15,
+  'Rugged Leather Section': 4,
+  'Rawhide Leather Section': 23,
+  'Coarse Leather Section': 10,
+  'Cotton Scrap': 13,
+  'Silk Scrap': 32,
+  'Hard Wood Log': 23,
+  'Seasoned Wood Log': 18,
+  'Pile of Crystalline Dust': 1,
+  'Gold Ore': 32,
+  'Jute Scrap': 17,
+  'Silver Ore': 54,
+  'Glob of Ectoplasm': 0.6666, // Note you get 3 for 2, so 0.6666 for 1
+  'Thin Leather Section': 9,
+  'Ancient Wood Log': 8,
+  'Copper Ore': 18,
+  'Gossamer Scrap': 16,
+  'Hardened Leather Section': 2,
+  'Green Wood Log': 64,
+  'Watchwork Sprocket': 7,
+  'Orichalcum Ore': 13,
+  'Wool Scrap': 14,
 };
-
-const httpGet = (url) =>
-  new Promise((res, rej) => {
-    console.log("Calling: ", url);
-    http.get(url, (result) => {
-      let rawData = "";
-      result.on("data", (chunk) => {
-        rawData += chunk;
-      });
-      result.on("end", () => {
-        try {
-          const parsedData = JSON.parse(rawData);
-          res(parsedData);
-        } catch (e) {
-          console.error(e.message);
-        }
-      });
-    });
-  });
-
-async function getTranslates() {
-  const url = `${GW2API}/items?ids=${IDS.join(",")}`;
-  let res = await httpGet(url);
-  return res.reduce((acc, d) => {
-    acc[d.id] = { name: d.name, id: d.id };
-    return acc;
-  }, {});
-}
-
-async function getPrices() {
-  const url = `${GW2API}/commerce/prices?ids=${IDS.join(",")}`;
-  let res = await httpGet(url);
-  return res.reduce((acc, d) => {
-    acc[d.id] = {
-      buyPrice: d.buys.unit_price,
-      sellPrice: d.sells.unit_price,
-      id: d.id,
-    };
-    return acc;
-  }, {});
-}
 
 async function getBoxValue() {
   return Promise.resolve({
@@ -123,8 +81,8 @@ async function getBoxValue() {
 }
 
 async function main() {
-  const prices = await getPrices();
-  const trans = await getTranslates();
+  const prices = await api.getPrices(IDS);
+  const trans = await api.getTranslates(IDS);
   const boxVal = await getBoxValue();
 
   // Combine all our data for computation
@@ -137,20 +95,22 @@ async function main() {
       itemBuyNowPrice: prices[id].buyPrice,
       itemPlaceOrderPrice: prices[id].sellPrice,
     };
-  }).map((d) => ({
-    ...d,
-    boxBuyNowCost: Math.ceil(d.itemBuyNowPrice * d.unitsForBox),
-    boxPlaceOrderCost: Math.ceil(d.itemPlaceOrderPrice * d.unitsForBox),
-  }))
-  .sort((a, b) => a.boxBuyNowCost - b.boxBuyNowCost)
-  .map(d => ({
-    ...d,
-    ...boxVal,
-    canFlipBuying: boxVal.boxSellNowValue >= d.boxBuyNowCost,
-  }))
+  })
+    .map((d) => ({
+      ...d,
+      boxBuyNowCost: Math.ceil(d.itemBuyNowPrice * d.unitsForBox),
+      boxPlaceOrderCost: Math.ceil(d.itemPlaceOrderPrice * d.unitsForBox),
+    }))
+    .sort((a, b) => a.boxBuyNowCost - b.boxBuyNowCost)
+    .map((d) => ({
+      ...d,
+      ...boxVal,
+      canFlipBuying: boxVal.boxSellNowValue >= d.boxBuyNowCost,
+    }));
 
   // Print
   console.table(joinedData);
+  printCalls();
 }
 
 main();
