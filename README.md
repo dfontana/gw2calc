@@ -1,5 +1,11 @@
 # API helper for finding opportunities #
 
+## explore-ops ##
+
+- See if there's anything on the TP to flip
+- Run it and the output will be the top most profitable crafts it could find.
+- Only looks 1 deep in the craft tree ATM
+
 ## Daily Crafts ##
 
 - Follow the link to GW2Efficiency to see what the cost of crafting is
@@ -99,4 +105,3 @@ Array.from(document.querySelectorAll('.eff-Table > tbody > tr > td > div > div:n
   "Wool Scrap": 14
 }
 ```
->>>>>>> master
