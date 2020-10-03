@@ -105,5 +105,3 @@ Array.from(document.querySelectorAll('.eff-Table > tbody > tr > td > div > div:n
   "Wool Scrap": 14
 }
 ```
->>>>>>> master
->>>>>>> master
