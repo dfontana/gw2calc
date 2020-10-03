@@ -72,6 +72,65 @@ async function getTranslates(ids) {
 }
 
 /**
+ * All IDS from the TP
+ */
+async function getAllIds() {
+  const url = `${GW2API}/commerce/prices`;
+  let res = await httpGet(url);
+  return res;
+}
+
+/**
+ * Recipe for item Id
+ */
+async function getRecipe(itemId) {
+  const url = `${GW2API}/recipes/search?output=${itemId}`;
+  let res = await httpGet(url);
+  return res;
+}
+
+/**
+ * Listings for the given ids list
+ */
+async function getListings(ids) {
+  const results = await Promise.all(
+    Object.values(makeBatches(ids, 200)).map(async (ids) => {
+      const url = `${GW2API}/commerce/listings?ids=${ids.join(',')}`;
+      return await httpGet(url);
+    })
+  );
+  return results.reduce((acc, res) => {
+    res.forEach((d) => {
+      acc[d.id] = {
+        buys: d.buys
+          .map((i) => ({ count: i.quantity, price: i.unit_price }))
+          .sort((a, b) => b.price - a.price),
+        sells: d.sells.map((i) => ({ count: i.quantity, price: i.unit_price })),
+        id: d.id,
+      };
+    });
+    return acc;
+  }, {});
+}
+
+/**
+ * Given list of recipes, expand them out
+ */
+async function expandRecipes(recipes) {
+  const url = `${GW2API}/recipes?ids=${recipes.map((r) => r.recipeId)}`;
+  const recs = await httpGet(url);
+  return recs
+    .filter((res) => !res.guild_ingredients)
+    .filter((res) => !res.flags.includes("LearnedFromItem"))
+    .map((res) => ({
+      makesItemId: res.output_item_id,
+      viaRecipe: res.id,
+      items: res.ingredients.map((i) => ({ itemId: i.item_id, needed: i.count })),
+      count: res.output_item_count,
+    }));
+}
+
+/**
  * Print calls that occured
  */
 function printCalls() {
@@ -80,5 +139,5 @@ function printCalls() {
 
 module.exports = {
   printCalls,
-  api: { getPrices, getTranslates },
+  api: { getPrices, getTranslates, getRecipe, getAllIds, expandRecipes},
 };

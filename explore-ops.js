@@ -1,88 +1,7 @@
-const http = require("https");
-const fs = require("fs");
-const GW2API = "https://api.guildwars2.com/v2";
-
+const {makeBatches, cache, toHumanCoin, sleep} = require('./utils')
+const {api, printCalls} = require('./api');
 const MIN_PROFIT = 100;
 
-let NETWORK_CALLS = {};
-
-const httpGet = (url) =>
-  new Promise((res, rej) => {
-    // TODO put this behind a debug flag
-    // console.log("Calling: ", url);
-    http.get(url, (result) => {
-      let rawData = "";
-      result.on("data", (chunk) => {
-        rawData += chunk;
-      });
-      result.on("end", () => {
-        try {
-          const pathEnd = url.indexOf("?") > 0 ? url.indexOf("?") : url.lastIndexOf("/");
-          const path = url.substring(29, pathEnd);
-          NETWORK_CALLS[path] = (NETWORK_CALLS[path] || 0) + 1;
-          const parsedData = JSON.parse(rawData);
-          res(parsedData);
-        } catch (e) {
-          console.error(e.message);
-        }
-      });
-    });
-  });
-
-
-function readStore(fileName) {
-  try {
-    return JSON.parse(fs.readFileSync(`./cache/${fileName}.json`, "utf8"));
-  } catch (err) {
-    console.error(err);
-    return false;
-  }
-}
-
-function writeStore(data, name) {
-  try {
-    fs.writeFileSync(`./cache/${name}.json`, JSON.stringify(data));
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => {
-    console.log(`Sleeping ${ms}ms`);
-    setTimeout(resolve, ms);
-  });
-}
-
-function toHumanCoin(coins) {
-  let gold = 0,
-    silver = 0,
-    copper = coins;
-  if (coins >= 100) {
-    copper = coins % 100;
-    coins = Math.floor(coins / 100);
-    silver = coins;
-    if (coins >= 100) {
-      silver = coins % 100;
-      coins = Math.floor(coins / 100);
-      gold = coins;
-    }
-  }
-  const s = `${silver}`.padStart(2, "0");
-  const c = `${copper}`.padStart(2, "0");
-  const g = `${gold}`.padStart(2, "0");
-  return `${g}g ${s}s ${c}c`;
-}
-
-
-function makeBatches(list, groupSize) {
-  return list.reduce((acc, item, idx) => {
-    const rowNum = Math.floor(idx / groupSize) + 1;
-    acc[rowNum] = acc[rowNum] || [];
-    acc[rowNum].push(item);
-    return acc;
-  }, {});
-}
 
 function getFlipValue(totalCost, totalValue) {
   const listingFee = Math.max(totalValue * 0.05, 1);
@@ -95,56 +14,23 @@ function getFlipValue(totalCost, totalValue) {
 }
 
 
-async function getAllIds() {
-  const url = `${GW2API}/commerce/prices`;
-  let res = await httpGet(url);
-  return res;
-}
-
-async function getRecipe(itemId) {
-  const url = `${GW2API}/recipes/search?output=${itemId}`;
-  let res = await httpGet(url);
-  return res;
-}
-
-async function getListings(ids) {
-  const results = await Promise.all(
-    Object.values(makeBatches(ids, 200)).map(async (ids) => {
-      const url = `${GW2API}/commerce/listings?ids=${ids}`;
-      return await httpGet(url);
-    })
-  );
-  return results.reduce((acc, res) => {
-    res.forEach((d) => {
-      acc[d.id] = {
-        buys: d.buys
-          .map((i) => ({ count: i.quantity, price: i.unit_price }))
-          .sort((a, b) => b.price - a.price),
-        sells: d.sells.map((i) => ({ count: i.quantity, price: i.unit_price })),
-        id: d.id,
-      };
-    });
-    return acc;
-  }, {});
-}
-
 async function getAllTradeableCraftableIds() {
-  let allIds = readStore("ids");
+  let allIds = cache.readStore("ids");
   if (!allIds) {
-    allIds = await getAllIds();
-    writeStore(allIds, "ids");
+    allIds = await api.getAllIds();
+    cache.writeStore(allIds, "ids");
   }
 
   const groups = makeBatches(allIds, 500);
 
-  let acc = readStore("allRecs");
+  let acc = cache.readStore("allRecs");
   if (!acc) {
     acc = {};
     for (const [key, batch] of Object.entries(groups)) {
-      let recs = readStore(`batch_${batch[0]}`);
+      let recs = cache.readStore(`batch_${batch[0]}`);
       if (!recs) {
-        recs = await Promise.all(batch.map((i) => getRecipe(i)));
-        writeStore(recs, `batch_${batch[0]}`);
+        recs = await Promise.all(batch.map((i) => api.getRecipe(i)));
+        cache.writeStore(recs, `batch_${batch[0]}`);
         for (let i = 0; i < recs.length; i++) {
           if (recs[i].length !== 0) {
             acc[batch[i]] = recs[i];
@@ -153,7 +39,7 @@ async function getAllTradeableCraftableIds() {
             allIds = allIds.filter((id) => id !== batch[i]);
           }
         }
-        writeStore(allIds, "ids");
+        cache.writeStore(allIds, "ids");
       } else {
         for (let i = 0; i < recs.length; i++) {
           if (recs[i].length !== 0) {
@@ -164,28 +50,12 @@ async function getAllTradeableCraftableIds() {
       console.log("Ids left:", allIds.length);
       await sleep(90000);
     }
-    writeStore(acc, "allRecs");
+    cache.writeStore(acc, "allRecs");
   }
 
   console.log(`${Object.keys(acc).length} ids loaded.`);
   return acc;
 }
-
-
-async function expandRecipes(recipes) {
-  const url = `${GW2API}/recipes?ids=${recipes.map((r) => r.recipeId)}`;
-  const recs = await httpGet(url);
-  return recs
-    .filter((res) => !res.guild_ingredients)
-    .filter((res) => !res.flags.includes("LearnedFromItem"))
-    .map((res) => ({
-      makesItemId: res.output_item_id,
-      viaRecpipe: res.id,
-      items: res.ingredients.map((i) => ({ itemId: i.item_id, needed: i.count })),
-      count: res.output_item_count,
-    }));
-}
-
 
 /**
  * TODO we're leaving a fair bit on the table here by choosing not to explore crafting vs purchasing
@@ -251,7 +121,7 @@ async function main() {
   let recipes = Object.values(allRecipes).map((recipeIds) => ({ recipeId: recipeIds[0] }));
 
   // Expand each recipe into it's pieces
-  recipes = await Promise.all(Object.values(makeBatches(recipes, 200)).map(expandRecipes));
+  recipes = await Promise.all(Object.values(makeBatches(recipes, 200)).map(api.expandRecipes));
   recipes = recipes.reduce((acc, batch) => [...acc, ...batch], []);
 
   const allItemsToGet = recipes.reduce((acc, { makesItemId, items }) => {
@@ -260,7 +130,7 @@ async function main() {
     return acc;
   }, {});
 
-  const listings = await getListings(Object.keys(allItemsToGet));
+  const listings = await api.getListings(Object.keys(allItemsToGet));
 
   // Remove the ones we can't do anything with
   // And figure out which are profitable
